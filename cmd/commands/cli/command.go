@@ -163,6 +163,7 @@ func (c *cliApp) handleActions(line string) {
 		{"registration", c.registration},
 		{"proposals", c.proposals},
 		{"service", c.service},
+		{"sendRubbish", handler: c.sendRubbish},
 	}
 
 	for _, cmd := range staticCmds {
@@ -617,6 +618,31 @@ func (c *cliApp) stopClient() {
 	success("Client stopped")
 }
 
+func (c *cliApp) sendRubbish(argsString string) {
+	success("Rubbish sent correctly!: ", argsString)
+	//"umido", "plastica", "secco", "indifferenziata"
+	arg := strings.Fields(argsString)
+	if len(arg) < 0 {
+		info("mi manca qualche informazione")
+		return
+	}
+
+	switch arg[0] {
+	case "umido":
+		fmt.Println("l'umido passa una volta a settimana il martedi")
+	case "plastica":
+		fmt.Println("la plastica passa il lunedi ed il venerdi")
+	case "secco":
+		fmt.Println("per il secco devi pagare un extra")
+	case "indifferenziata":
+		fmt.Println("l'indifferenziata è un lusso per pochi, e solo il giovedi")
+
+	default:
+		warnf("Cosa altro diavolo vuoi buttare che non conosco? %s\n", argsString)
+		return
+	}
+}
+
 func (c *cliApp) version(argsString string) {
 	fmt.Println(versionSummary)
 }
@@ -644,6 +670,12 @@ func getIdentityOptionList(tequilapi *tequilapi_client.Client) func(string) []st
 		}
 
 		return identities
+	}
+}
+
+func getTypeOfRubbish() func(string) []string {
+	return func(line string) []string {
+		return []string{"umido", "plastica", "secco", "indifferenziata"}
 	}
 }
 
@@ -718,6 +750,12 @@ func newAutocompleter(tequilapi *tequilapi_client.Client, proposals []tequilapi_
 			"registration",
 			readline.PcItemDynamic(
 				getIdentityOptionList(tequilapi),
+			),
+		),
+		readline.PcItem(
+			"sendRubbish",
+			readline.PcItemDynamic(
+				getTypeOfRubbish(),
 			),
 		),
 	)
