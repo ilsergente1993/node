@@ -21,13 +21,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
-	"path/filepath"
-	"strconv"
-	"strings"
-
 	"github.com/chzyer/readline"
 	"github.com/mysteriumnetwork/node/cmd"
+	"github.com/mysteriumnetwork/node/cmd/commands/cli/dashboard"
 	"github.com/mysteriumnetwork/node/core/service"
 	"github.com/mysteriumnetwork/node/metadata"
 	"github.com/mysteriumnetwork/node/services/noop"
@@ -38,6 +34,10 @@ import (
 	tequilapi_client "github.com/mysteriumnetwork/node/tequilapi/client"
 	"github.com/mysteriumnetwork/node/utils"
 	"github.com/urfave/cli"
+	"log"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 const cliCommandName = "cli"
@@ -148,6 +148,7 @@ func (c *cliApp) handleActions(line string) {
 		{"ip", c.ip},
 		{"disconnect", c.disconnect},
 		{"stop", c.stopClient},
+		{"dashboard", c.dashboard},
 	}
 
 	argCmds := []struct {
@@ -163,7 +164,7 @@ func (c *cliApp) handleActions(line string) {
 		{"registration", c.registration},
 		{"proposals", c.proposals},
 		{"service", c.service},
-		{"sendRubbish", handler: c.sendRubbish},
+		{"sendRubbish", c.sendRubbish},
 	}
 
 	for _, cmd := range staticCmds {
@@ -643,6 +644,11 @@ func (c *cliApp) sendRubbish(argsString string) {
 	}
 }
 
+func (c *cliApp) dashboard() {
+	fmt.Print("going to show the dashboard")
+	dashboard.GetDashboard(c.tequilapi);
+}
+
 func (c *cliApp) version(argsString string) {
 	fmt.Println(versionSummary)
 }
@@ -757,7 +763,7 @@ func newAutocompleter(tequilapi *tequilapi_client.Client, proposals []tequilapi_
 			readline.PcItemDynamic(
 				getTypeOfRubbish(),
 			),
-		),
+		),readline.PcItem("dashboard"),
 	)
 }
 
