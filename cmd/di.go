@@ -20,6 +20,9 @@ package cmd
 import (
 	"time"
 
+	"fmt"
+	"path/filepath"
+
 	log "github.com/cihub/seelog"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
@@ -72,6 +75,8 @@ import (
 	"github.com/mysteriumnetwork/node/utils"
 )
 
+const logPrefix = "[service bootstrap] "
+
 // Storage stores persistent objects for future usage
 type Storage interface {
 	Store(issuer string, data interface{}) error
@@ -112,6 +117,12 @@ type NATStatusTracker interface {
 	ConsumeNATEvent(event event.Event)
 }
 
+// CacheResolver caches the location resolution results
+type CacheResolver interface {
+	location.Resolver
+	HandleConnectionEvent(connection.StateEvent)
+}
+
 // Dependencies is DI container for top level components which is reused in several places
 type Dependencies struct {
 	Node *node.Node
@@ -131,8 +142,7 @@ type Dependencies struct {
 	IdentityRegistration identity_registry.RegistrationDataProvider
 
 	IPResolver       ip.Resolver
-	LocationResolver location.Resolver
-	LocationOriginal location.Cache
+	LocationResolver CacheResolver
 
 	StatisticsTracker  *statistics.SessionStatisticsTracker
 	StatisticsReporter *statistics.SessionStatisticsReporter
@@ -218,7 +228,6 @@ func (di *Dependencies) registerOpenvpnConnection(nodeOptions node.Options) {
 		nodeOptions.Openvpn.BinaryPath(),
 		nodeOptions.Directories.Config,
 		nodeOptions.Directories.Runtime,
-		di.LocationOriginal,
 		di.SignerFactory,
 		di.IPResolver,
 		di.NATPinger,
@@ -306,6 +315,11 @@ func (di *Dependencies) subscribeEventConsumers() error {
 		return err
 	}
 
+	err = di.EventBus.SubscribeAsync(connection.StateEventTopic, di.LocationResolver.HandleConnectionEvent)
+	if err != nil {
+		return err
+	}
+
 	// NAT events
 	err = di.EventBus.Subscribe(event.Topic, di.NATEventSender.ConsumeNATEvent)
 	if err != nil {
@@ -315,6 +329,7 @@ func (di *Dependencies) subscribeEventConsumers() error {
 	if err != nil {
 		return err
 	}
+
 	return di.EventBus.Subscribe(event.Topic, di.NATStatusTracker.ConsumeNATEvent)
 }
 
@@ -329,7 +344,7 @@ func (di *Dependencies) bootstrapNodeComponents(nodeOptions node.Options) {
 		di.StatisticsTracker,
 		di.MysteriumAPI,
 		di.SignerFactory,
-		di.LocationOriginal.Get,
+		di.LocationResolver,
 		time.Minute,
 	)
 	di.SessionStorage = consumer_session.NewSessionStorage(di.Storage, di.StatisticsTracker)
@@ -362,14 +377,13 @@ func (di *Dependencies) bootstrapNodeComponents(nodeOptions node.Options) {
 	corsPolicy := tequilapi.NewMysteriumCorsPolicy()
 	httpAPIServer := tequilapi.NewServer(nodeOptions.TequilapiAddress, nodeOptions.TequilapiPort, router, corsPolicy)
 
-	di.Node = node.NewNode(di.ConnectionManager, httpAPIServer, di.LocationOriginal, di.MetricsSender, di.NATPinger)
+	di.Node = node.NewNode(di.ConnectionManager, httpAPIServer, di.LocationResolver, di.MetricsSender, di.NATPinger)
 }
 
 func newSessionManagerFactory(
 	proposal market.ServiceProposal,
 	sessionStorage *session.StorageMemory,
 	promiseStorage session_payment.PromiseStorage,
-	nodeOptions node.Options,
 	natPingerChan func(*traversal.Params),
 	natTracker NatEventTracker,
 	serviceID string,
@@ -483,13 +497,26 @@ func (di *Dependencies) bootstrapIdentityComponents(options node.Options) {
 
 func (di *Dependencies) bootstrapLocationComponents(options node.OptionsLocation, configDirectory string) (err error) {
 	di.IPResolver = ip.NewResolver(options.IPDetectorURL)
-	di.LocationResolver, err = location.CreateLocationResolver(di.IPResolver, options.Country, options.City, options.Type, options.NodeType, options.Address, options.ExternalDb, configDirFlag)
+
+	var resolver location.Resolver
+	switch options.Type {
+	case node.LocationTypeManual:
+		resolver = location.NewStaticResolver(options.Country, options.City, options.NodeType, di.IPResolver)
+	case node.LocationTypeBuiltin:
+		resolver, err = location.NewBuiltInResolver(di.IPResolver)
+	case node.LocationTypeMMDB:
+		resolver, err = location.NewExternalDBResolver(filepath.Join(configDirectory, options.Address), di.IPResolver)
+	case node.LocationTypeOracle:
+		resolver, err = location.NewOracleResolver(options.Address), nil
+	default:
+		err = fmt.Errorf("unknown location detector type: %s", options.Type)
+	}
 	if err != nil {
 		return err
 	}
 
-	di.LocationOriginal = location.NewLocationCache(di.LocationResolver)
-	return nil
+	di.LocationResolver = location.NewCache(resolver, time.Minute*5)
+	return
 }
 
 func (di *Dependencies) bootstrapMetrics(options node.Options) {
@@ -500,6 +527,7 @@ func (di *Dependencies) bootstrapMetrics(options node.Options) {
 func (di *Dependencies) bootstrapNATComponents(options node.Options) {
 	di.NATTracker = event.NewTracker()
 	if options.ExperimentNATPunching {
+		log.Trace(logPrefix + "experimental NAT punching enabled, creating a pinger")
 		di.NATPinger = traversal.NewPingerFactory(
 			di.NATTracker,
 			config.NewConfigParser(),

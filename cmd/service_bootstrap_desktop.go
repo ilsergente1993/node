@@ -44,8 +44,6 @@ import (
 	"github.com/mysteriumnetwork/node/session"
 )
 
-const logPrefix = "[service bootstrap] "
-
 // bootstrapServices loads all the components required for running services
 func (di *Dependencies) bootstrapServices(nodeOptions node.Options) {
 	di.bootstrapServiceComponents(nodeOptions)
@@ -218,7 +216,6 @@ func (di *Dependencies) bootstrapServiceComponents(nodeOptions node.Options) {
 			proposal,
 			di.ServiceSessionStorage,
 			di.PromiseStorage,
-			nodeOptions,
 			di.NATPinger.PingTarget,
 			di.NATTracker,
 			serviceID)
