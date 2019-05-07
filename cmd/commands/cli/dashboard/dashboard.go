@@ -41,21 +41,24 @@ func GetDashboard(api *tequilapi_client.Client) {
 				graph := asciigraph.Plot(data, asciigraph.Height(10), asciigraph.Width(20), asciigraph.Offset(5))
 				fmt.Println(graph)
 
+				//creo la tabella
+				table := tablewriter.NewWriter(os.Stdout)
+
 				//ottengo le proposals
 				proposals, err := api.Proposals()
 				if err != nil {
 					fmt.Println(err)
 				}
 
+				//costruisco la multi-slice che poi converto in [][]
+				//[4]string{p.ID), p.ProviderID, p.ServiceType, p.ServiceDefinition.LocationOriginate.Country
+				for _, p := range proposals {
+					table.Append([]string{string(p.ID), p.ProviderID, p.ServiceType, p.ServiceDefinition.LocationOriginate.Country})
+				}
+
 				//creo la tabella
 				tableString := &strings.Builder{}
-				data := [][]string{
-					[]string{string(proposals[0].ID), proposals[0].ProviderID, proposals[0].ServiceType, proposals[0].ServiceDefinition.LocationOriginate.Country},
-					[]string{"1/1/2014", "January Hosting", "2233", "$54.95"},
-					[]string{"1/4/2014", "February Hosting", "2233", "$51.00"},
-					[]string{"1/4/2014", "February Extra Bandwidth", "2233", "$30.00"},
-				}
-				table := tablewriter.NewWriter(os.Stdout)
+
 				table.SetHeader([]string{"ID", "ProviderID", "ServiceType", "ServiceDefinition"})
 				table.SetFooter([]string{"", "", "Total", "$146.93"}) // Add Footer
 				table.SetBorder(false)                                // Set Border to false
@@ -74,7 +77,7 @@ func GetDashboard(api *tequilapi_client.Client) {
 					tablewriter.Colors{tablewriter.Bold},
 					tablewriter.Colors{tablewriter.FgHiRedColor})
 
-				table.AppendBulk(data)
+				//table.AppendBulk(data)
 				table.SetColMinWidth(1, 100)
 				table.Render()
 				fmt.Println(tableString.String())
