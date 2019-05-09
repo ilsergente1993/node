@@ -42,6 +42,8 @@ import (
 
 const cliCommandName = "cli"
 
+const MysteriumAscii = "                                `+yo-                         -ss/`                                 \r\n                              `+yyosho.                     -sysoyy/`                               \r\n                            `+yh+`  :yyo.                 -syo.  .yyy/`                             \r\n                          `+yhhh.    +hhyo.             -syo.     /yyys:`                           \r\n                        `+yy+shy     `yhyyyo-         -syy.       -yyyyys:`                         \r\n                      `+yy/` /ho      +yy-:syo.     -syyyy.     .oyyyy``/ys:`                       \r\n                    `+yy/`   sh:      `yy.  -syo-`-syo-`/ys   .oys-.sy:  `/ys/`                     \r\n                  `+yy/`    `yy.       +yo    -syyyo.    syo/oyo-   :ys    `/ys:`                   \r\n                `+yy/`   `-:ohh/.      `yy.     sy/      .yyyo-      oy:     .yys:`                 \r\n              `+yhy:-/+syysooyyyyys+:. `sy+     yy-       /ys       .oyyo++++syyyys:`               \r\n            `+yhhhhhhhs:.`   .yys::+syyyyyy.   `yy`       `sy/.-:+syyyyy/:::+yy+--/ys:              \r\n          `+yys+/-..sh/       :ys`    .:+syyo/:oys       `-syyys+/-..oy+     :ys`  `/ss:`           \r\n        `+yy/`      +ho`       oy+        -yyssyyy/-.:/oyyyyy:`      sy-      :ys.   `/ss:`         \r\n      `+yy/`        /yyyso/:.` `yy:      `sy/  `-/+yyy/:.`-oyo.     .yy`       :ys.    `/ss:`       \r\n    `+yy/`        `-syy--:+oyysyyyy.    `sy+       /y+      -oyo.   :yo        /yys.     `/ss:      \r\n    -hh:       .:oyyyyo      `-syyyy:` `syyy+:.    .yy`      `yyyo--sy:      .oyo+ss-      /ys`     \r\n     -syo. `-+sys/-.+yo       -syo:+yyoyy+--/oyyo/-:yy:    `/ys/:oyyyy`    `/ys.  .ss-   -os+.      \r\n       -syyyho:`    :ys     -syo.   `+yys`     .:+syyys  `/ys:`   -oyy.   -sy/     .ss/:oy+.        \r\n         :syy-      -ys   -syo.       `+ys:`       `-yysoys/`       -oy+:+yo.       .syy+.          \r\n           :syo.    -yy.-syo.           `/ys:`       +yys:`           -oyyo        -oy+.            \r\n             -syo.  .yyyyo.               `+ys:`   `/ys:`               -oy+.    -oy+.              \r\n               -syo-/yyo.                   `/ys/-/ys:`                   -oy+--oy+.                \r\n                 :syyo.                       `/yys/`                       -oyy+.                  \r\n                   ..                           `-`                           ..                    \r\n"
+
 const serviceHelp = `service <action> [args]
 	start	<ProviderID> <ServiceType> [options]
 	stop	<ServiceID>
@@ -149,6 +151,7 @@ func (c *cliApp) handleActions(line string) {
 		{"disconnect", c.disconnect},
 		{"stop", c.stopClient},
 		{"dashboard", c.dashboard},
+		{"logo", c.logo},
 	}
 
 	argCmds := []struct {
@@ -164,7 +167,6 @@ func (c *cliApp) handleActions(line string) {
 		{"registration", c.registration},
 		{"proposals", c.proposals},
 		{"service", c.service},
-		{"sendRubbish", c.sendRubbish},
 	}
 
 	for _, cmd := range staticCmds {
@@ -619,34 +621,17 @@ func (c *cliApp) stopClient() {
 	success("Client stopped")
 }
 
-func (c *cliApp) sendRubbish(argsString string) {
-	success("Rubbish sent correctly!: ", argsString)
-	//"umido", "plastica", "secco", "indifferenziata"
-	arg := strings.Fields(argsString)
-	if len(arg) < 0 {
-		info("mi manca qualche informazione")
-		return
-	}
-
-	switch arg[0] {
-	case "umido":
-		fmt.Println("l'umido passa una volta a settimana il martedi")
-	case "plastica":
-		fmt.Println("la plastica passa il lunedi ed il venerdi")
-	case "secco":
-		fmt.Println("per il secco devi pagare un extra")
-	case "indifferenziata":
-		fmt.Println("l'indifferenziata è un lusso per pochi, e solo il giovedi")
-
-	default:
-		warnf("Cosa altro diavolo vuoi buttare che non conosco? %s\n", argsString)
-		return
-	}
+func (c *cliApp) logo() {
+	fmt.Print(MysteriumAscii)
 }
 
 func (c *cliApp) dashboard() {
-	fmt.Print("going to show the dashboard")
-	dashboard.GetDashboard(c.tequilapi);
+	status, _ := c.tequilapi.Status()
+	if status.Status == statusConnected {
+		dashboard.GetDashboard(c.tequilapi)
+	} else {
+		warn("You are not connected")
+	}
 }
 
 func (c *cliApp) version(argsString string) {
@@ -758,12 +743,8 @@ func newAutocompleter(tequilapi *tequilapi_client.Client, proposals []tequilapi_
 				getIdentityOptionList(tequilapi),
 			),
 		),
-		readline.PcItem(
-			"sendRubbish",
-			readline.PcItemDynamic(
-				getTypeOfRubbish(),
-			),
-		),readline.PcItem("dashboard"),
+		readline.PcItem("dashboard"),
+		readline.PcItem("logo"),
 	)
 }
 
