@@ -15,19 +15,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package port
+package market
 
-// FixedPortSupplier represents a fixed port number supplier
-type FixedPortSupplier struct {
-	number int
-}
-
-// NewFixed creates a fixed port number provider
-func NewFixed(port int) *FixedPortSupplier {
-	return &FixedPortSupplier{number: port}
-}
-
-// Acquire returns the fixed port
-func (fixed *FixedPortSupplier) Acquire() (Port, error) {
-	return Port(fixed.number), nil
+// ProposalFilter defines all flags for proposal filtering in discovery of Mysterium Network
+type ProposalFilter struct {
+	ProviderID         string
+	ServiceType        string
+	AccessPolicyID     string
+	AccessPolicySource string
 }

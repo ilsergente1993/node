@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The "MysteriumNetwork/node" Authors.
+ * Copyright (C) 2019 The "MysteriumNetwork/node" Authors.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,21 +15,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package nat
+package market
 
-import "os/exec"
+// ProposalID defines composite ID to identify unique proposal discovery of Mysterium Network
+type ProposalID struct {
+	// Type of service type offered
+	ServiceType string
 
-// NewService returns linux os specific nat service based on ip tables
-func NewService() NATService {
-	return &serviceIPTables{
-		ipForward: serviceIPForward{
-			CommandFactory: func(name string, arg ...string) Command {
-				return exec.Command(name, arg...)
-			},
-			CommandEnable:  []string{"sudo", "/sbin/sysctl", "-w", "net.ipv4.ip_forward=1"},
-			CommandDisable: []string{"sudo", "/sbin/sysctl", "-w", "net.ipv4.ip_forward=0"},
-			CommandRead:    []string{"/sbin/sysctl", "-n", "net.ipv4.ip_forward"},
-		},
-		rules: make(map[RuleForwarding]struct{}),
-	}
+	// Unique identifier of a provider
+	ProviderID string
+
+	// Per provider unique serial number of service description provided
+	ID int
 }

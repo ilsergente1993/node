@@ -64,9 +64,9 @@ func (c *Client) Start(options connection.ConnectOptions) error {
 	c.process = proc
 	log.Infof("client config: %v", clientConfig)
 
-	c.natPinger.BindConsumerPort(clientConfig.LocalPort)
 	if clientConfig.VpnConfig.LocalPort > 0 {
-		err = c.natPinger.PingProvider(clientConfig.VpnConfig.RemoteIP, clientConfig.VpnConfig.RemotePort, c.pingerStop)
+		c.natPinger.BindConsumerPort(clientConfig.LocalPort)
+		err = c.natPinger.PingProvider(clientConfig.OriginalRemoteIP, clientConfig.OriginalRemotePort, c.pingerStop)
 		if err != nil {
 			return err
 		}
@@ -107,11 +107,7 @@ func (c *Client) GetConfig() (connection.ConsumerConfig, error) {
 	}
 
 	return &ConsumerConfig{
-		// TODO: since GetConfig is executed before Start we cannot access VPNConfig structure yet
-		// TODO skip sending port here, since provider generates port for consumer in VPNConfig
-		//Port: c.vpnClientConfig.LocalPort,
-		Port: 50221,
-		IP:   &ip,
+		IP: &ip,
 	}, nil
 }
 

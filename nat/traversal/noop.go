@@ -24,6 +24,17 @@ import (
 // NoopPinger does nothing
 type NoopPinger struct{}
 
+// Valid returns that noop pinger is not a valid pinger
+func (np *NoopPinger) Valid() bool {
+	return false
+}
+
+// StopNATProxy does nothing
+func (np *NoopPinger) StopNATProxy() {}
+
+// SetProtectSocketCallback does nothing
+func (np *NoopPinger) SetProtectSocketCallback(SocketProtect func(socket int) bool) {}
+
 // Start does nothing
 func (np *NoopPinger) Start() {}
 
