@@ -41,6 +41,11 @@ type NATProxy struct {
 
 func (np *NATProxy) consumerHandOff(consumerPort int, remoteConn *net.UDPConn) chan struct{} {
 	stop := make(chan struct{})
+	if np.socketProtect == nil {
+		// shutdown pinger session since openvpn client will connect directly (without NATProxy)
+		remoteConn.Close()
+		return stop
+	}
 	go np.consumerProxy(consumerPort, remoteConn, stop)
 	return stop
 }
@@ -193,7 +198,6 @@ func (np *NATProxy) getConnection(serviceType services.ServiceType) (*net.UDPCon
 	if err != nil {
 		return nil, err
 	}
-
 	return net.DialUDP("udp", nil, udpAddr)
 }
 
