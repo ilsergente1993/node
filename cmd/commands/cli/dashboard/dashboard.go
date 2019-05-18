@@ -18,7 +18,7 @@ const APIUPDATEFREQ = 500  //milliseconds
 const WINUPDATEFREQ = 1000 //milliseconds (must be WINUPDATEFREQ > APIUPDATEFREQ)
 
 var speedData []float64
-var table *tablewriter.Table
+var tableProposals *tablewriter.Table
 
 type Stats struct {
 	BSent     uint64
@@ -33,6 +33,7 @@ func GetDashboard(api *tequilapi_client.Client) {
 	tickerConsole := time.NewTicker(WINUPDATEFREQ * time.Millisecond)
 	//var proposals []tequilapi_client.ProposalDTO
 	var statistics tequilapi_client.StatisticsDTO
+	var status tequilapi_client.StatusDTO
 	var err error
 	defer tickerAPI.Stop()
 	defer tickerConsole.Stop()
@@ -60,6 +61,11 @@ func GetDashboard(api *tequilapi_client.Client) {
 			statistics.BytesReceived = uint64(rand.Intn(1000000))
 			statistics.BytesSent = uint64(rand.Intn(1000000))
 
+			status, err = api.Status()
+			if err != nil {
+				fmt.Println(err)
+			}
+
 			//ottengo le proposals
 			/*proposals, err = api.Proposals()
 			if err != nil {
@@ -69,7 +75,8 @@ func GetDashboard(api *tequilapi_client.Client) {
 			CallClear()
 			//PRINT EVERYTHING
 			fmt.Println(speedGraph(statistics))
-			fmt.Println()
+			fmt.Println(Line())
+			fmt.Println(ConnectionDetails(status))
 			//fmt.Println(proposalsTable(proposals))
 			cont++
 			fmt.Print(cont)
@@ -87,45 +94,53 @@ func speedGraph(statistics tequilapi_client.StatisticsDTO) string {
 	}
 	//TODO: mantenere un numero limitato di elementi nello slice altrimenti vado in overflow
 	speedData = append(speedData, float64(statistics.BytesSent))
-	header := "Speed graph [current: " + strconv.FormatFloat(vel, 'f', 2, 64) + "KB/sec]\n"
+	header := "Speed graph [current: " + ToUnit(uint64(vel)) + "/sec]\n"
 	footer := "\n" +
-		"TOTAL SENT: " + strconv.FormatFloat(float64(globalStats.BSent/100), 'f', 2, 640) + " KB  |  " +
-		"TOTAL RECEIVED " + strconv.FormatFloat(float64(globalStats.BReceived/1000), 'f', 2, 64) + " KB  |  " +
-		"SPEED PEAK " + strconv.FormatFloat(float64(globalStats.PeakSpeed), 'f', 2, 64) + " KB/sec"
+		"TOTAL SENT: " + ToUnit(globalStats.BSent) + " | " +
+		"TOTAL RECEIVED " + ToUnit(globalStats.BReceived) + " |  " +
+		"SPEED PEAK " + ToUnit(globalStats.PeakSpeed) + "/sec"
 	return header + asciigraph.Plot(speedData, asciigraph.Height(10), asciigraph.Width(WINWIDTH-5), asciigraph.Offset(5)) + footer
+}
+
+func ConnectionDetails(status tequilapi_client.StatusDTO) string {
+	return "ID: \t\t" + strconv.Itoa(status.Proposal.ID) + "\n" +
+		"Provider: \t" + string(status.Proposal.ProviderID) + "\n" +
+		"Country: \t" + string(status.Proposal.ServiceDefinition.LocationOriginate.Country) + "\n" +
+		"Service Type: \t" + string(status.Proposal.ServiceType)
+
 }
 
 func proposalsTable(proposals []tequilapi_client.ProposalDTO) string {
 	tableString := &strings.Builder{}
 	//appendo ogni proposal alla tabella
-	table.ClearRows()
+	tableProposals.ClearRows()
 	for _, p := range proposals {
-		table.Append([]string{string(p.ID), p.ProviderID, p.ServiceType, p.ServiceDefinition.LocationOriginate.Country})
+		tableProposals.Append([]string{string(p.ID), p.ProviderID, p.ServiceType, p.ServiceDefinition.LocationOriginate.Country})
 	}
-	table.Render()
+	tableProposals.Render()
 	return tableString.String()
 }
 
 func Init() {
 	speedData = append(speedData, 1)
 
-	table = tablewriter.NewWriter(os.Stdout)
+	tableProposals = tablewriter.NewWriter(os.Stdout)
 
-	table.SetHeader([]string{"ID", "ProviderID", "ServiceType", "ServiceDefinition"})
-	table.SetBorder(false)
-	//table.SetColMinWidth(1, WINWIDTH) //imposto larghezza minima di una colonna
+	tableProposals.SetHeader([]string{"ID", "ProviderID", "ServiceType", "ServiceDefinition"})
+	tableProposals.SetBorder(false)
+	//tableProposals.SetColMinWidth(1, WINWIDTH) //imposto larghezza minima di una colonna
 
-	table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
+	tableProposals.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
 		tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
 		tablewriter.Colors{tablewriter.BgRedColor, tablewriter.FgWhiteColor},
 		tablewriter.Colors{tablewriter.BgCyanColor, tablewriter.FgWhiteColor})
 
-	table.SetColumnColor(tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
+	tableProposals.SetColumnColor(tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiRedColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
 		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
 
-	/*table.SetFooterColor(tablewriter.Colors{}, tablewriter.Colors{},
+	/*tableProposals.SetFooterColor(tablewriter.Colors{}, tablewriter.Colors{},
 	tablewriter.Colors{tablewriter.Bold},
 	tablewriter.Colors{tablewriter.FgHiRedColor})*/
 
