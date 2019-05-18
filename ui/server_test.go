@@ -1,7 +1,5 @@
-// +build android
-
 /*
- * Copyright (C) 2018 The "MysteriumNetwork/node" Authors.
+ * Copyright (C) 2019 The "MysteriumNetwork/node" Authors.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,12 +15,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package cmd
+package ui
 
 import (
-	"github.com/mysteriumnetwork/node/core/node"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/html"
 )
 
-func (di *Dependencies) registerConnections(nodeOptions node.Options) {
-	di.registerNoopConnection()
+func Test_Server_ServesHTML(t *testing.T) {
+	s := NewServer(55555)
+	serverError := make(chan error)
+	go func() {
+		err := s.Serve()
+		serverError <- err
+	}()
+
+	select {
+	case <-time.After(time.Millisecond * 5):
+	}
+
+	resp, err := http.Get("http://:55555/")
+	assert.Nil(t, err)
+
+	defer resp.Body.Close()
+
+	_, err = html.Parse(resp.Body)
+	assert.Nil(t, err)
+
+	s.Stop()
+	assert.Nil(t, <-serverError)
 }

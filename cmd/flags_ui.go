@@ -1,7 +1,5 @@
-// +build !android
-
 /*
- * Copyright (C) 2018 The "MysteriumNetwork/node" Authors.
+ * Copyright (C) 2019 The "MysteriumNetwork/node" Authors.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,17 +19,30 @@ package cmd
 
 import (
 	"github.com/mysteriumnetwork/node/core/node"
-	"github.com/mysteriumnetwork/node/services/wireguard"
-	wireguard_connection "github.com/mysteriumnetwork/node/services/wireguard/connection"
+	"github.com/urfave/cli"
 )
 
-func (di *Dependencies) registerConnections(nodeOptions node.Options) {
-	di.registerOpenvpnConnection(nodeOptions)
-	di.registerNoopConnection()
-	di.registerWireguardConnection()
+var (
+	uiPortFlag = cli.IntFlag{
+		Name:  "ui.port",
+		Usage: "the port to run ui on",
+		Value: 4449,
+	}
+	uiEnableFlag = cli.BoolFlag{
+		Name:  "ui.enable",
+		Usage: "enables the ui",
+	}
+)
+
+// RegisterFlagsUI function register UI flags to flag list
+func RegisterFlagsUI(flags *[]cli.Flag) {
+	*flags = append(*flags, uiPortFlag, uiEnableFlag)
 }
 
-func (di *Dependencies) registerWireguardConnection() {
-	wireguard.Bootstrap()
-	di.ConnectionRegistry.Register(wireguard.ServiceType, wireguard_connection.NewConnectionCreator())
+// ParseFlagsUI function fills in UI options from CLI context
+func ParseFlagsUI(ctx *cli.Context) node.OptionsUI {
+	return node.OptionsUI{
+		UIEnabled: ctx.GlobalBool(uiEnableFlag.Name),
+		UIPort:    ctx.GlobalInt(uiPortFlag.Name),
+	}
 }

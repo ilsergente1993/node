@@ -73,6 +73,7 @@ import (
 	"github.com/mysteriumnetwork/node/session/promise/validators"
 	"github.com/mysteriumnetwork/node/tequilapi"
 	tequilapi_endpoints "github.com/mysteriumnetwork/node/tequilapi/endpoints"
+	"github.com/mysteriumnetwork/node/ui"
 	"github.com/mysteriumnetwork/node/utils"
 	"github.com/pkg/errors"
 )
@@ -93,9 +94,8 @@ type Storage interface {
 
 // NatPinger is responsible for pinging nat holes
 type NatPinger interface {
-	PingProvider(ip string, port int, stop <-chan struct{}) error
+	PingProvider(ip string, port int, consumerPort int, stop <-chan struct{}) error
 	PingTarget(*traversal.Params)
-	BindConsumerPort(port int)
 	BindServicePort(serviceType services.ServiceType, port int)
 	Start()
 	Stop()
@@ -128,6 +128,12 @@ type CacheResolver interface {
 	location.OriginResolver
 	HandleNodeEvent(se nodevent.Payload)
 	HandleConnectionEvent(connection.StateEvent)
+}
+
+// UIServer represents our web server
+type UIServer interface {
+	Serve() error
+	Stop()
 }
 
 // Dependencies is DI container for top level components which is reused in several places
@@ -172,6 +178,8 @@ type Dependencies struct {
 	PortPool *port.Pool
 
 	MetricsSender *metrics.Sender
+
+	UIServer UIServer
 }
 
 // Bootstrap initiates all container dependencies
@@ -206,6 +214,8 @@ func (di *Dependencies) Bootstrap(nodeOptions node.Options) error {
 	if err := di.bootstrapLocationComponents(nodeOptions.Location, nodeOptions.Directories.Config); err != nil {
 		return err
 	}
+
+	di.bootstrapUIServer(nodeOptions.UI)
 
 	di.bootstrapMetrics(nodeOptions)
 
@@ -302,6 +312,15 @@ func (di *Dependencies) bootstrapStorage(path string) error {
 	return nil
 }
 
+func (di *Dependencies) bootstrapUIServer(options node.OptionsUI) {
+	if options.UIEnabled {
+		di.UIServer = ui.NewServer(options.UIPort)
+		return
+	}
+
+	di.UIServer = ui.NewNoopServer()
+}
+
 func (di *Dependencies) subscribeEventConsumers() error {
 	// state events
 	err := di.EventBus.Subscribe(connection.SessionEventTopic, di.StatisticsTracker.ConsumeSessionEvent)
@@ -380,7 +399,7 @@ func (di *Dependencies) bootstrapNodeComponents(nodeOptions node.Options, listen
 	corsPolicy := tequilapi.NewMysteriumCorsPolicy()
 	httpAPIServer := tequilapi.NewServer(listener, router, corsPolicy)
 
-	di.Node = node.NewNode(di.ConnectionManager, httpAPIServer, di.EventBus, di.MetricsSender, di.NATPinger)
+	di.Node = node.NewNode(di.ConnectionManager, httpAPIServer, di.EventBus, di.MetricsSender, di.NATPinger, di.UIServer)
 }
 
 func newSessionManagerFactory(

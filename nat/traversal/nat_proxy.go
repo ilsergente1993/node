@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -39,24 +40,25 @@ type NATProxy struct {
 	once          sync.Once
 }
 
-func (np *NATProxy) consumerHandOff(consumerPort int, remoteConn *net.UDPConn) chan struct{} {
+func (np *NATProxy) consumerHandOff(consumerAddr string, remoteConn *net.UDPConn) chan struct{} {
+	time.Sleep(400 * time.Millisecond)
 	stop := make(chan struct{})
 	if np.socketProtect == nil {
 		// shutdown pinger session since openvpn client will connect directly (without NATProxy)
 		remoteConn.Close()
 		return stop
 	}
-	go np.consumerProxy(consumerPort, remoteConn, stop)
+	go np.consumerProxy(consumerAddr, remoteConn, stop)
 	return stop
 }
 
 // consumerProxy launches listener on pinger port and wait for openvpn connect
 // Read from listener socket and write to remoteConn
 // Read from remoteConn and write to listener socket
-func (np *NATProxy) consumerProxy(consumerPort int, remoteConn *net.UDPConn, stop chan struct{}) {
+func (np *NATProxy) consumerProxy(consumerAddr string, remoteConn *net.UDPConn, stop chan struct{}) {
 	log.Info(logPrefix, "Inside consumer NATProxy")
 
-	laddr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("127.0.0.1:%d", consumerPort+1))
+	laddr, err := net.ResolveUDPAddr("udp4", consumerAddr)
 	if err != nil {
 		log.Error(logPrefix, "failed to get local address for consumer NATProxy: ", err)
 		return
