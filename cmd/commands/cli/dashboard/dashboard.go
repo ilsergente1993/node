@@ -13,14 +13,13 @@ import (
 	"github.com/mum4k/termdash/terminal/terminalapi"
 	"github.com/mum4k/termdash/widgets/gauge"
 	"github.com/mum4k/termdash/widgets/linechart"
+	"github.com/mum4k/termdash/widgets/text"
 	"github.com/mum4k/termdash/widgets/textinput"
+	"github.com/mysteriumnetwork/node/datasize"
 	tequilapi_client "github.com/mysteriumnetwork/node/tequilapi/client"
-	"github.com/olekukonko/tablewriter"
 	"math"
 	"math/rand"
-	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -29,6 +28,7 @@ type widgets struct {
 	gauge     *gauge.Gauge
 	speedLine *linechart.LineChart
 	input     *textinput.TextInput
+	speedText *text.Text
 }
 
 // rootID is the ID assigned to the root container.
@@ -39,8 +39,6 @@ const redrawInterval = 250 * time.Millisecond
 
 const speedIGraphRange = 30 //seconds
 
-var tableProposals *tablewriter.Table
-
 type Stats struct {
 	BSent             uint64
 	BReceived         uint64
@@ -48,7 +46,7 @@ type Stats struct {
 	PeakUploadSpeed   uint64
 }
 
-var globalStats = Stats{0, 0, 0, 0}
+var globalStats = Stats{0, 0, 0, 0} //in bytes
 
 var api *tequilapi_client.Client
 
@@ -95,121 +93,6 @@ func GetDashboard(_api *tequilapi_client.Client) {
 		panic(err)
 	}
 
-	/*
-		tickerAPI := time.NewTicker(APIUPDATEFREQ * time.Millisecond)
-		tickerConsole := time.NewTicker(WINUPDATEFREQ * time.Millisecond)
-		//var proposals []tequilapi_client.ProposalDTO
-		var statistics tequilapi_client.StatisticsDTO
-		var status tequilapi_client.StatusDTO
-		var err error
-		defer tickerAPI.Stop()
-		defer tickerConsole.Stop()
-		cont := 0
-		Init()
-
-		done := make(chan bool)
-		go func() {
-			time.Sleep(10 * time.Second)
-			done <- true
-		}()
-
-		for {
-			select {
-			case d := <-done:
-				fmt.Println("Done?", d)
-				return
-			case <-tickerAPI.C:
-				//ottengo le statistiche di connessione
-				statistics, err = api.ConnectionStatistics()
-				if err != nil {
-					fmt.Println(err)
-				}
-				//random data perchè sono in noop connection
-				statistics.BytesReceived = uint64(rand.Intn(1000000))
-				statistics.BytesSent = uint64(rand.Intn(1000000))
-
-				status, err = api.Status()
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				//ottengo le proposals
-				proposals, err = api.Proposals()
-				if err != nil {
-					fmt.Println(err)
-				}
-			case <-tickerConsole.C: //pulisco la console
-				CallClear()
-				//PRINT EVERYTHING
-				fmt.Println(speedGraph(statistics))
-				fmt.Println(Line())
-				fmt.Println(ConnectionDetails(status))
-				//fmt.Println(proposalsTable(proposals))
-				cont++
-				fmt.Print(cont)
-			}
-		}*/
-}
-
-func speedGraph(statistics tequilapi_client.StatisticsDTO) string {
-	//fmt.Println(statistics)
-	/*vel := (math.Abs(float64(statistics.BytesSent) - speedData[len(speedData)-1])) / APIUPDATEFREQ
-	globalStats.BSent = globalStats.BSent + statistics.BytesSent
-	globalStats.BReceived = globalStats.BReceived + statistics.BytesReceived
-	if uint64(vel) > globalStats.PeakSpeed {
-		globalStats.PeakSpeed = uint64(vel)
-	}
-	//TODO: mantenere un numero limitato di elementi nello slice altrimenti vado in overflow
-	speedData = append(speedData, float64(statistics.BytesSent))
-	header := "Speed graph [current: " + ToUnit(uint64(vel)) + "/sec]\n"
-	footer := "\n" +
-		"TOTAL SENT: " + ToUnit(globalStats.BSent) + " | " +
-		"TOTAL RECEIVED " + ToUnit(globalStats.BReceived) + " |  " +
-		"SPEED PEAK " + ToUnit(globalStats.PeakSpeed) + "/sec"
-	return header + asciigraph.Plot(speedData, asciigraph.Height(10), asciigraph.Width(-5), asciigraph.Offset(5)) + footer */
-	return ""
-}
-
-func ConnectionDetails(status tequilapi_client.StatusDTO) string {
-	return "ID: \t\t" + strconv.Itoa(status.Proposal.ID) + "\n" +
-		"Provider: \t" + string(status.Proposal.ProviderID) + "\n" +
-		"Country: \t" + string(status.Proposal.ServiceDefinition.LocationOriginate.Country) + "\n" +
-		"Service Type: \t" + string(status.Proposal.ServiceType)
-
-}
-
-func proposalsTable(proposals []tequilapi_client.ProposalDTO) string {
-	tableString := &strings.Builder{}
-	//appendo ogni proposal alla tabella
-	tableProposals.ClearRows()
-	for _, p := range proposals {
-		tableProposals.Append([]string{string(p.ID), p.ProviderID, p.ServiceType, p.ServiceDefinition.LocationOriginate.Country})
-	}
-	tableProposals.Render()
-	return tableString.String()
-}
-
-func Init() {
-	tableProposals = tablewriter.NewWriter(os.Stdout)
-
-	tableProposals.SetHeader([]string{"ID", "ProviderID", "ServiceType", "ServiceDefinition"})
-	tableProposals.SetBorder(false)
-	//tableProposals.SetColMinWidth(1, ) //imposto larghezza minima di una colonna
-
-	tableProposals.SetHeaderColor(tablewriter.Colors{tablewriter.Bold, tablewriter.BgGreenColor},
-		tablewriter.Colors{tablewriter.FgHiRedColor, tablewriter.Bold, tablewriter.BgBlackColor},
-		tablewriter.Colors{tablewriter.BgRedColor, tablewriter.FgWhiteColor},
-		tablewriter.Colors{tablewriter.BgCyanColor, tablewriter.FgWhiteColor})
-
-	tableProposals.SetColumnColor(tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
-		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiRedColor},
-		tablewriter.Colors{tablewriter.Bold, tablewriter.FgHiBlackColor},
-		tablewriter.Colors{tablewriter.Bold, tablewriter.FgBlackColor})
-
-	/*tableProposals.SetFooterColor(tablewriter.Colors{}, tablewriter.Colors{},
-	tablewriter.Colors{tablewriter.Bold},
-	tablewriter.Colors{tablewriter.FgHiRedColor})*/
-
 }
 
 // creates the used widgets
@@ -219,7 +102,10 @@ func createWidgets(ctx context.Context, c *container.Container) (*widgets, error
 	if err != nil {
 		return nil, err
 	}
-
+	speedText, err := newSpeedText(ctx)
+	if err != nil {
+		panic(err)
+	}
 	g, err := newGauge(ctx)
 	if err != nil {
 		return nil, err
@@ -233,29 +119,38 @@ func createWidgets(ctx context.Context, c *container.Container) (*widgets, error
 		gauge:     g,
 		speedLine: speedLine,
 		input:     input,
+		speedText: speedText,
 	}, nil
 }
 
 // build the layout
 func gridLayout(w *widgets) ([]container.Option, error) {
+	padding := 5
 	builder := grid.New()
 	builder.Add(
 		grid.RowHeightPerc(95,
 			grid.ColWidthPerc(70,
 				grid.RowHeightPerc(30,
 					grid.Widget(w.speedLine,
-						container.Border(linestyle.Round),
+						container.Border(linestyle.Light),
 						container.BorderTitle("Press 'q' to quit"),
+						container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding),
 					),
 				),
-				grid.RowHeightPerc(70),
+				grid.RowHeightPerc(15,
+					grid.Widget(w.speedText,
+						container.Border(linestyle.Light),
+						container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding)),
+				),
+				grid.RowHeightPerc(50),
 			),
 			grid.ColWidthPerc(30,
 				grid.RowHeightPerc(10,
 					grid.Widget(w.gauge,
-						container.Border(linestyle.Round),
+						container.Border(linestyle.Light),
 						container.BorderTitle("Your wallet"),
-					), ),
+						container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding),
+					)),
 				grid.RowHeightPerc(90),
 			),
 		),
@@ -270,9 +165,9 @@ func gridLayout(w *widgets) ([]container.Option, error) {
 	return gridOpts, nil
 }
 
-/* funtions to create the widgets */
+/* functions to create the widgets */
 
-// newHeartbeat returns a line chart that displays a heartbeat-like progression.
+// speedLine returns a line chart that displays a heartbeat-like progression.
 func speedLine(ctx context.Context) (*linechart.LineChart, error) {
 	updateInterval := redrawInterval * 2
 
@@ -298,28 +193,29 @@ func speedLine(ctx context.Context) (*linechart.LineChart, error) {
 	}
 	Xlabels[nOfElements] = "now"
 	Xlabels[nOfElements-1] = "now"
+	Xlabels[nOfElements+1] = "now"
 	go periodic(ctx, updateInterval, func() error {
 		statistics, err = api.ConnectionStatistics()
 		if err != nil {
 			fmt.Println(err)
 		}
 		//TODO: remove, random data because I test with a noop connection
-		statistics.BytesReceived = uint64(rand.Intn(1000000))
-		statistics.BytesSent = uint64(rand.Intn(1000000))
+		statistics.BytesReceived = uint64(rand.Intn(500000))
+		statistics.BytesSent = uint64(rand.Intn(500000))
 
-		// saving speed calculation and global statistics
-		speed := (math.Abs(float64(statistics.BytesSent) - downloadSpeed[len(downloadSpeed)-1])) / float64(updateInterval)
+		// calculating and saving global statistics
 		globalStats = Stats{
 			globalStats.BSent + statistics.BytesSent,
 			globalStats.BReceived + statistics.BytesReceived,
 			globalStats.PeakDownloadSpeed,
 			globalStats.PeakUploadSpeed,
 		}
-		if uint64(speed) > globalStats.PeakDownloadSpeed {
-			globalStats.PeakDownloadSpeed = uint64(speed)
+
+		if speedDW := (math.Abs(float64(statistics.BytesReceived) - downloadSpeed[len(downloadSpeed)-1])) / float64(updateInterval.Seconds()); uint64(speedDW) > globalStats.PeakDownloadSpeed {
+			globalStats.PeakDownloadSpeed = uint64(speedDW)
 		}
-		if uint64(speed) > globalStats.PeakUploadSpeed {
-			globalStats.PeakUploadSpeed = uint64(speed)
+		if speedUP := (math.Abs(float64(statistics.BytesSent) - downloadSpeed[len(downloadSpeed)-1])) / float64(updateInterval.Seconds()); uint64(speedUP) > globalStats.PeakUploadSpeed {
+			globalStats.PeakUploadSpeed = uint64(speedUP)
 		}
 		downloadSpeed = append(downloadSpeed, float64(statistics.BytesReceived))
 		uploadSpeed = append(uploadSpeed, float64(statistics.BytesSent))
@@ -343,6 +239,44 @@ func speedLine(ctx context.Context) (*linechart.LineChart, error) {
 }
 
 // newGauge creates a demo Gauge widget.
+func newSpeedText(ctx context.Context) (*text.Text, error) {
+	data, err := text.New(text.WrapAtRunes())
+	if err != nil {
+		panic(err)
+	}
+
+	go periodic(ctx, 2*time.Second, func() error {
+		if err := data.Write("TOTAL SENT: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta)), text.WriteReplace()); err != nil {
+			panic(err)
+		}
+		if err := data.Write(datasize.BitSize(globalStats.BSent * 8).String()); err != nil {
+			panic(err)
+		}
+		if err := data.Write("   TOTAL RECEIVED: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
+			panic(err)
+		}
+		if err := data.Write(datasize.BitSize(globalStats.BReceived * 8).String()); err != nil {
+			panic(err)
+		}
+		if err := data.Write("   DOWNLOAD SPEED PEAK: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
+			panic(err)
+		}
+		if err := data.Write(datasize.BitSize(globalStats.PeakDownloadSpeed*8).String() + "/sec"); err != nil {
+			panic(err)
+		}
+		if err := data.Write("   UPLOAD SPEED PEAK: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
+			panic(err)
+		}
+		if err := data.Write(datasize.BitSize(globalStats.PeakUploadSpeed*8).String() + "/sec"); err != nil {
+			panic(err)
+		}
+
+		return nil
+	})
+	return data, nil
+}
+
+// newGauge creates a demo Gauge widget.
 func newGauge(ctx context.Context) (*gauge.Gauge, error) {
 	g, err := gauge.New()
 	if err != nil {
@@ -353,7 +287,7 @@ func newGauge(ctx context.Context) (*gauge.Gauge, error) {
 	progress := start
 
 	go periodic(ctx, 2*time.Second, func() error {
-		//TODO: getting here the data
+		//TODO: getting here the wallet consumption data
 		var c gauge.Option
 		if progress < 20 {
 			c = gauge.Color(cell.ColorRed)
@@ -407,13 +341,4 @@ func periodic(ctx context.Context, interval time.Duration, fn func() error) {
 			return
 		}
 	}
-}
-
-// rotateFloats returns a new slice with inputs rotated by step.
-// I.e. for a step of one:
-//   inputs[0] -> inputs[len(inputs)-1]
-//   inputs[1] -> inputs[0]
-// And so on.
-func rotateFloats(inputs []float64, step int) []float64 {
-	return append(inputs[step:], inputs[:step]...)
 }
