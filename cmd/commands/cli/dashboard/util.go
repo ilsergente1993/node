@@ -5,8 +5,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
-	_ "github.com/gizak/termui/v3"
-	_ "github.com/gizak/termui/v3/widgets"
 )
 
 var clear map[string]func() //create a map for storing clear funcs
@@ -49,11 +47,4 @@ func ToUnit(bytes uint64) string {
 		return "Toooo big"
 
 	}
-}
-func Line() string {
-	l := ""
-	for i := 0; i < WINWIDTH; i++ {
-		l += "_"
-	}
-	return l
 }
