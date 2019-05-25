@@ -38,6 +38,7 @@ const rootID = "root"
 const redrawInterval = 250 * time.Millisecond
 
 const speedIGraphRange = 30 //seconds
+const StatusConnected = "Connected"
 
 type Stats struct {
 	BSent             uint64
@@ -102,7 +103,7 @@ func createWidgets(ctx context.Context, c *container.Container) (*widgets, error
 	if err != nil {
 		return nil, err
 	}
-	speedText, err := newSpeedText(ctx)
+	speedText, err := statusText(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -128,34 +129,36 @@ func gridLayout(w *widgets) ([]container.Option, error) {
 	padding := 5
 	builder := grid.New()
 	builder.Add(
-		grid.RowHeightPerc(95,
-			grid.ColWidthPerc(70,
-				grid.RowHeightPerc(30,
-					grid.Widget(w.speedLine,
-						container.Border(linestyle.Light),
-						container.BorderTitle("Press 'q' to quit"),
-						container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding),
-					),
-				),
-				grid.RowHeightPerc(15,
-					grid.Widget(w.speedText,
-						container.Border(linestyle.Light),
-						container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding)),
-				),
-				grid.RowHeightPerc(50),
-			),
-			grid.ColWidthPerc(30,
-				grid.RowHeightPerc(10,
-					grid.Widget(w.gauge,
-						container.Border(linestyle.Light),
-						container.BorderTitle("Your wallet"),
-						container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding),
-					)),
-				grid.RowHeightPerc(90),
-			),
+		grid.RowHeightPerc(10,
+			grid.Widget(w.speedText,
+				container.Border(linestyle.Light),
+				container.PaddingLeft(1), container.PaddingTopPercent(padding), container.PaddingRight(1), container.PaddingBottomPercent(padding)),
 		),
-		grid.RowHeightPerc(5,
-			grid.Widget(w.input),
+		grid.RowHeightPerc(90,
+			grid.RowHeightPerc(95,
+				grid.ColWidthPerc(70,
+					grid.RowHeightPerc(30,
+						grid.Widget(w.speedLine,
+							container.Border(linestyle.Light),
+							container.BorderTitle("Press 'q' to quit"),
+							container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding),
+						),
+					),
+					grid.RowHeightPerc(50),
+				),
+				grid.ColWidthPerc(30,
+					grid.RowHeightPerc(10,
+						grid.Widget(w.gauge,
+							container.Border(linestyle.Light),
+							container.BorderTitle("Your wallet"),
+							container.PaddingLeftPercent(padding), container.PaddingTopPercent(padding), container.PaddingRightPercent(padding), container.PaddingBottomPercent(padding),
+						)),
+					grid.RowHeightPerc(90),
+				),
+			),
+			grid.RowHeightPerc(5,
+				grid.Widget(w.input),
+			),
 		),
 	)
 	gridOpts, err := builder.Build()
@@ -197,7 +200,7 @@ func speedLine(ctx context.Context) (*linechart.LineChart, error) {
 	go periodic(ctx, updateInterval, func() error {
 		statistics, err = api.ConnectionStatistics()
 		if err != nil {
-			fmt.Println(err)
+			panic(err)
 		}
 		//TODO: remove, random data because I test with a noop connection
 		statistics.BytesReceived = uint64(rand.Intn(500000))
@@ -238,36 +241,63 @@ func speedLine(ctx context.Context) (*linechart.LineChart, error) {
 	return lc, nil
 }
 
-// newGauge creates a demo Gauge widget.
-func newSpeedText(ctx context.Context) (*text.Text, error) {
+// status text
+func statusText(ctx context.Context) (*text.Text, error) {
 	data, err := text.New(text.WrapAtRunes())
+	space := "   "
 	if err != nil {
 		panic(err)
 	}
+	blinkingFlag := false
 
-	go periodic(ctx, 2*time.Second, func() error {
-		if err := data.Write("TOTAL SENT: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta)), text.WriteReplace()); err != nil {
+	go periodic(ctx, 1*time.Second, func() error {
+		status, err := api.Status()
+		if err != nil {
 			panic(err)
 		}
-		if err := data.Write(datasize.BitSize(globalStats.BSent * 8).String()); err != nil {
+
+		if err := data.Write("STATUS:", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta)), text.WriteReplace()); err != nil {
 			panic(err)
 		}
-		if err := data.Write("   TOTAL RECEIVED: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
+		c := cell.FgColor(cell.ColorGreen)
+		if s := status.Status; s == StatusConnected {
+			if err := data.Write(status.Status+space, text.WriteCellOpts(c)); err != nil {
+				panic(err)
+			}
+		} else {
+			c = cell.FgColor(cell.ColorRed)
+			if blinkingFlag = !blinkingFlag; blinkingFlag {
+				c = cell.FgColor(cell.ColorBlack)
+			}
+			if err := data.Write("RECONNECTING"+space, text.WriteCellOpts(c)); err != nil {
+				panic(err)
+			}
+			// start the reconnection procedure
+			connect()
+		}
+
+		if err := data.Write("TOTAL SENT: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
 			panic(err)
 		}
-		if err := data.Write(datasize.BitSize(globalStats.BReceived * 8).String()); err != nil {
+		if err := data.Write(datasize.BitSize(globalStats.BSent * 8).String() + space); err != nil {
 			panic(err)
 		}
-		if err := data.Write("   DOWNLOAD SPEED PEAK: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
+		if err := data.Write("TOTAL RECEIVED: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
 			panic(err)
 		}
-		if err := data.Write(datasize.BitSize(globalStats.PeakDownloadSpeed*8).String() + "/sec"); err != nil {
+		if err := data.Write(datasize.BitSize(globalStats.BReceived * 8).String() + space); err != nil {
 			panic(err)
 		}
-		if err := data.Write("   UPLOAD SPEED PEAK: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
+		if err := data.Write("DOWNLOAD SPEED PEAK: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
 			panic(err)
 		}
-		if err := data.Write(datasize.BitSize(globalStats.PeakUploadSpeed*8).String() + "/sec"); err != nil {
+		if err := data.Write(datasize.BitSize(globalStats.PeakDownloadSpeed * 8).String() + "/sec" + space); err != nil {
+			panic(err)
+		}
+		if err := data.Write("UPLOAD SPEED PEAK: ", text.WriteCellOpts(cell.FgColor(cell.ColorMagenta))); err != nil {
+			panic(err)
+		}
+		if err := data.Write(datasize.BitSize(globalStats.PeakUploadSpeed * 8).String() + "/sec" + space); err != nil {
 			panic(err)
 		}
 
@@ -322,6 +352,10 @@ func newTextInput(updateText chan<- string) (*textinput.TextInput, error) {
 		return nil, err
 	}
 	return input, err
+}
+
+func connect() {
+	fmt.Println("trying to reconnect, yeah")
 }
 
 /* helpers */

@@ -82,7 +82,7 @@ type cliApp struct {
 
 const redColor = "\033[31m%s\033[0m"
 const identityDefaultPassphrase = ""
-const statusConnected = "Connected"
+const StatusConnected = "Connected"
 
 var versionSummary = metadata.VersionAsSummary(metadata.LicenseCopyright(
 	"type 'license --warranty'",
@@ -427,7 +427,7 @@ func (c *cliApp) status() {
 		info("SID:", status.SessionID)
 	}
 
-	if status.Status == statusConnected {
+	if status.Status == StatusConnected {
 		statistics, err := c.tequilapi.ConnectionStatistics()
 		if err != nil {
 			warn(err)
@@ -626,12 +626,7 @@ func (c *cliApp) logo() {
 }
 
 func (c *cliApp) dashboard() {
-	status, _ := c.tequilapi.Status()
-	if status.Status == statusConnected {
-		dashboard.GetDashboard(c.tequilapi)
-	} else {
-		warn("You are not connected")
-	}
+	dashboard.GetDashboard(c.tequilapi)
 }
 
 func (c *cliApp) version(argsString string) {

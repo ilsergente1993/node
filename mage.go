@@ -1,3 +1,5 @@
+// +build ignore
+
 /*
  * Copyright (C) 2019 The "MysteriumNetwork/node" Authors.
  *
@@ -15,28 +17,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package noop contains the non operational payment and balance trackers
-package noop
+package main
 
-// SessionBalance doesn't really track the balance
-type SessionBalance struct {
-	stopChan chan struct{}
-}
+import (
+	"os"
 
-// NewSessionBalance returns a noop session balance tracker
-func NewSessionBalance() *SessionBalance {
-	return &SessionBalance{
-		stopChan: make(chan struct{}),
-	}
-}
+	"github.com/magefile/mage/mage"
+)
 
-// Start starts the noop session balance tracker
-func (nsb *SessionBalance) Start() error {
-	<-nsb.stopChan
-	return nil
-}
-
-// Stop stops the noop session balance tracker
-func (nsb *SessionBalance) Stop() {
-	close(nsb.stopChan)
-}
+// Zero install option.
+// Usage example:
+//   go run mage.go test
+func main() { os.Exit(mage.Main()) }

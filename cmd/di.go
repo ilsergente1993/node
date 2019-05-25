@@ -32,6 +32,7 @@ import (
 	"github.com/mysteriumnetwork/node/communication/nats"
 	nats_dialog "github.com/mysteriumnetwork/node/communication/nats/dialog"
 	nats_discovery "github.com/mysteriumnetwork/node/communication/nats/discovery"
+	"github.com/mysteriumnetwork/node/consumer/bandwidth"
 	consumer_session "github.com/mysteriumnetwork/node/consumer/session"
 	"github.com/mysteriumnetwork/node/consumer/statistics"
 	"github.com/mysteriumnetwork/node/core/connection"
@@ -65,14 +66,12 @@ import (
 	"github.com/mysteriumnetwork/node/nat/upnp"
 	"github.com/mysteriumnetwork/node/services"
 	service_noop "github.com/mysteriumnetwork/node/services/noop"
-	"github.com/mysteriumnetwork/node/services/openvpn"
 	service_openvpn "github.com/mysteriumnetwork/node/services/openvpn"
 	"github.com/mysteriumnetwork/node/services/openvpn/discovery/dto"
 	"github.com/mysteriumnetwork/node/session"
 	"github.com/mysteriumnetwork/node/session/balance"
 	session_payment "github.com/mysteriumnetwork/node/session/payment"
 	payment_factory "github.com/mysteriumnetwork/node/session/payment/factory"
-	payments_noop "github.com/mysteriumnetwork/node/session/payment/noop"
 	"github.com/mysteriumnetwork/node/session/promise"
 	"github.com/mysteriumnetwork/node/session/promise/validators"
 	"github.com/mysteriumnetwork/node/tequilapi"
@@ -184,6 +183,8 @@ type Dependencies struct {
 
 	MetricsSender *metrics.Sender
 
+	BandwidthTracker *bandwidth.Tracker
+
 	UIServer UIServer
 }
 
@@ -205,7 +206,7 @@ func (di *Dependencies) Bootstrap(nodeOptions node.Options) error {
 		return err
 	}
 
-	if err := di.bootstrapNetworkComponents(nodeOptions); err != nil {
+	if err := di.bootstrapNetworkComponents(nodeOptions.OptionsNetwork); err != nil {
 		return err
 	}
 
@@ -225,6 +226,10 @@ func (di *Dependencies) Bootstrap(nodeOptions node.Options) error {
 	}
 
 	di.bootstrapUIServer(nodeOptions.UI)
+
+	if err := di.bootstrapBandwidthTracker(); err != nil {
+		return err
+	}
 
 	di.bootstrapMetrics(nodeOptions)
 	di.bootstrapNATComponents(nodeOptions)
@@ -418,13 +423,6 @@ func newSessionManagerFactory(
 ) session.ManagerFactory {
 	return func(dialog communication.Dialog) *session.Manager {
 		providerBalanceTrackerFactory := func(consumerID, receiverID, issuerID identity.Identity) (session.BalanceTracker, error) {
-			// We want backwards compatibility for openvpn on desktop providers, so no payments for them.
-			// Splitting this as a separate case just for that reason.
-			// TODO: remove this one day.
-			if proposal.ServiceType == openvpn.ServiceType {
-				return payments_noop.NewSessionBalance(), nil
-			}
-
 			timeTracker := session.NewTracker(time.Now)
 			// TODO: set the time and proper payment info
 			payment := dto.PaymentPerTime{
@@ -461,7 +459,7 @@ func newSessionManagerFactory(
 }
 
 // function decides on network definition combined from testnet/localnet flags and possible overrides
-func (di *Dependencies) bootstrapNetworkComponents(options node.Options) (err error) {
+func (di *Dependencies) bootstrapNetworkComponents(options node.OptionsNetwork) (err error) {
 	network := metadata.DefaultNetwork
 
 	switch {
@@ -472,8 +470,8 @@ func (di *Dependencies) bootstrapNetworkComponents(options node.Options) (err er
 	}
 
 	//override defined values one by one from options
-	if options.Discovery.Address != metadata.DefaultNetwork.MysteriumAPIAddress {
-		network.MysteriumAPIAddress = options.Discovery.Address
+	if options.MysteriumAPIAddress != metadata.DefaultNetwork.MysteriumAPIAddress {
+		network.MysteriumAPIAddress = options.MysteriumAPIAddress
 	}
 
 	if options.BrokerAddress != metadata.DefaultNetwork.BrokerAddress {
@@ -582,6 +580,16 @@ func (di *Dependencies) bootstrapLocationComponents(options node.OptionsLocation
 	}
 
 	return
+}
+
+func (di *Dependencies) bootstrapBandwidthTracker() error {
+	di.BandwidthTracker = &bandwidth.Tracker{}
+	err := di.EventBus.SubscribeAsync(connection.SessionEventTopic, di.BandwidthTracker.ConsumeSessionEvent)
+	if err != nil {
+		return err
+	}
+
+	return di.EventBus.SubscribeAsync(connection.StatisticsEventTopic, di.BandwidthTracker.ConsumeStatisticsEvent)
 }
 
 func (di *Dependencies) bootstrapMetrics(options node.Options) {

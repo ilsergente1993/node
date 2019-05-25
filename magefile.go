@@ -1,5 +1,7 @@
+// +build mage
+
 /*
- * Copyright (C) 2018 The "MysteriumNetwork/node" Authors.
+ * Copyright (C) 2019 The "MysteriumNetwork/node" Authors.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,22 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package node
+package main
 
-// OptionsNetwork describes possible parameters of network configuration
-type OptionsNetwork struct {
-	Testnet  bool
-	Localnet bool
-
-	ExperimentIdentityCheck bool
-	ExperimentNATPunching   bool
-
-	MysteriumAPIAddress         string
-	AccessPolicyEndpointAddress string
-	BrokerAddress               string
-
-	EtherClientRPC       string
-	EtherPaymentsAddress string
-
-	QualityOracle string
-}
+import (
+	// mage:import
+	_ "github.com/mysteriumnetwork/node/ci/test"
+)
